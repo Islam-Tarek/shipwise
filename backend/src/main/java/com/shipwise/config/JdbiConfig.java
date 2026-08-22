@@ -1,9 +1,12 @@
 package com.shipwise.config;
 
+import java.util.List;
+
 import javax.sql.DataSource;
 
 import org.jdbi.v3.core.Jdbi;
-import org.jdbi.v3.core.mapper.CaseStrategy;
+import org.jdbi.v3.core.mapper.reflect.CaseInsensitiveColumnNameMatcher;
+import org.jdbi.v3.core.mapper.reflect.SnakeCaseColumnNameMatcher;
 import org.jdbi.v3.core.mapper.reflect.ReflectionMappers;
 import org.jdbi.v3.sqlobject.SqlObjectPlugin;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +20,10 @@ public class JdbiConfig {
     public Jdbi jdbi(DataSource dataSource) {
         Jdbi jdbi = Jdbi.create(new TransactionAwareDataSourceProxy(dataSource));
         jdbi.installPlugin(new SqlObjectPlugin());
-        jdbi.getConfig(ReflectionMappers.class).setCaseChange(CaseStrategy.LOWER_UNDERSCORE);
+        jdbi.getConfig(ReflectionMappers.class).setColumnNameMatchers(List.of(
+                new SnakeCaseColumnNameMatcher(),
+                new CaseInsensitiveColumnNameMatcher()
+        ));
         return jdbi;
     }
 }

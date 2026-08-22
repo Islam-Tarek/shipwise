@@ -77,4 +77,11 @@ public interface ProductDao {
             WHERE id = :id AND is_active = true AND stock_quantity >= :quantity
             """)
     int decrementStock(@Bind("id") long id, @Bind("quantity") int quantity);
+
+    @SqlUpdate("""
+            UPDATE products
+            SET stock_quantity = stock_quantity + :quantity, updated_at = now()
+            WHERE id = :id
+            """)
+    int restoreStock(@Bind("id") long id, @Bind("quantity") int quantity);
 }
