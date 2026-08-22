@@ -1,6 +1,5 @@
 package com.shipwise.product;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.jdbi.v3.sqlobject.customizer.Bind;
