@@ -43,8 +43,7 @@ public class OrderService {
 
             for (OrderItemRequest item : request.items()) {
                 Product product = products.get(item.productId());
-                orderDao.insertItem(new OrderItem(null, orderId, product.id(),
-                        item.quantity(), product.price()));
+                orderDao.insertItem(orderId, product.id(), item.quantity(), product.price());
 
                 int updated = jdbi.withExtension(ProductDao.class, dao ->
                         dao.decrementStock(product.id(), item.quantity()));

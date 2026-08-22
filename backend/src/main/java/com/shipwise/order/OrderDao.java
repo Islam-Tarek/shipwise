@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.jdbi.v3.sqlobject.customizer.Bind;
-import org.jdbi.v3.sqlobject.customizer.BindBean;
 import org.jdbi.v3.sqlobject.statement.GetGeneratedKeys;
 import org.jdbi.v3.sqlobject.statement.SqlQuery;
 import org.jdbi.v3.sqlobject.statement.SqlUpdate;
@@ -38,7 +37,8 @@ public interface OrderDao {
             VALUES (:orderId, :productId, :quantity, :unitPrice)
             """)
     @GetGeneratedKeys
-    long insertItem(@BindBean OrderItem item);
+    long insertItem(@Bind("orderId") long orderId, @Bind("productId") long productId,
+                    @Bind("quantity") int quantity, @Bind("unitPrice") BigDecimal unitPrice);
 
     @SqlQuery("""
             SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.unit_price
