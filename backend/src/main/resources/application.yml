@@ -2,7 +2,7 @@ spring:
   application:
     name: shipwise
   datasource:
-    url: jdbc:postgresql://localhost:5432/shipwise
+    url: jdbc:postgresql://localhost:5433/shipwise
     username: shipwise
     password: shipwise
   flyway:
