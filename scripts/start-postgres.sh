@@ -16,7 +16,7 @@ until docker exec shipwise-postgres pg_isready -U shipwise -d postgres >/dev/nul
   sleep 1
 done
 
-for db in shipwise_products shipwise_orders shipwise_auth shipwise_inventory shipwise_payment shipwise_shipping; do
+for db in shipwise_products shipwise_orders shipwise_auth shipwise_inventory shipwise_payment shipwise_shipping shipwise_notification; do
   if ! docker exec shipwise-postgres psql -U shipwise -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
     docker exec shipwise-postgres createdb -U shipwise "$db"
     echo "created database $db"
