@@ -12,7 +12,14 @@ docker run -d --name shipwise-postgres \
   postgres:17
 
 echo "waiting for postgres to accept connections"
-until docker exec shipwise-postgres pg_isready -U shipwise -d shipwise >/dev/null 2>&1; do
+until docker exec shipwise-postgres pg_isready -U shipwise -d postgres >/dev/null 2>&1; do
   sleep 1
 done
-echo "postgres is up on localhost:5433 (db=shipwise user=shipwise pass=shipwise)"
+
+for db in shipwise_products shipwise_orders shipwise_auth shipwise_inventory shipwise_payment shipwise_shipping; do
+  if ! docker exec shipwise-postgres psql -U shipwise -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
+    docker exec shipwise-postgres createdb -U shipwise "$db"
+    echo "created database $db"
+  fi
+done
+echo "postgres is up on localhost:5433 (one database per service)"
