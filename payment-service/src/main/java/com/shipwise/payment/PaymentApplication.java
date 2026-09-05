@@ -3,7 +3,7 @@ package com.shipwise.payment;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.shipwise")
 public class PaymentApplication {
 
     public static void main(String[] args) {
