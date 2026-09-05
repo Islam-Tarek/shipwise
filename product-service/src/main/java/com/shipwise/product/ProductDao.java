@@ -77,4 +77,11 @@ public interface ProductDao {
             WHERE id = :id
             """)
     int syncStock(@Bind("id") long id, @Bind("stockQuantity") int stockQuantity);
+
+    @SqlUpdate("""
+            UPDATE products
+            SET stock_quantity = :stockQuantity, updated_at = now()
+            WHERE external_id = :externalId
+            """)
+    int syncStockByExternalId(@Bind("externalId") String externalId, @Bind("stockQuantity") int stockQuantity);
 }

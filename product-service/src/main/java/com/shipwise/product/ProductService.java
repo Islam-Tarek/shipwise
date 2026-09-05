@@ -58,6 +58,14 @@ public class ProductService {
         }
     }
 
+    public void syncStockByExternalId(String externalId, int stockQuantity) {
+        int updated = jdbi.withExtension(ProductDao.class, dao ->
+                dao.syncStockByExternalId(externalId, stockQuantity));
+        if (updated == 0) {
+            throw new NotFoundException("product %s not found".formatted(externalId));
+        }
+    }
+
     private Map<Long, Category> loadCategories() {
         return jdbi.withExtension(CategoryDao.class, CategoryDao::findAll).stream()
                 .collect(Collectors.toMap(Category::id, Function.identity()));

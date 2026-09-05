@@ -47,6 +47,8 @@ public class CatalogSeeder implements ApplicationRunner {
             return;
         }
 
+        ensureCategories(page);
+
         int inserted = 0;
         int skipped = 0;
         for (DummyJsonProduct dto : page.products()) {
@@ -63,5 +65,15 @@ public class CatalogSeeder implements ApplicationRunner {
             inserted++;
         }
         log.info("seeded {} products from dummyjson, {} skipped", inserted, skipped);
+    }
+
+    private void ensureCategories(DummyJsonPage page) {
+        long categories = page.products().stream()
+                .map(DummyJsonProduct::category)
+                .distinct()
+                .peek(slug -> jdbi.useExtension(CategoryDao.class, dao ->
+                        dao.insertIfMissing(slug, slug)))
+                .count();
+        log.info("ensured {} category slugs from dummyjson snapshot", categories);
     }
 }
