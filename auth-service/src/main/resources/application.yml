@@ -1,6 +1,12 @@
 spring:
   application:
     name: auth-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/shipwise_auth
+    username: shipwise
+    password: shipwise
+  flyway:
+    locations: classpath:db/migration
 
 server:
   port: 8086
