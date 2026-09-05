@@ -1,6 +1,15 @@
 spring:
   application:
     name: product-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/shipwise_products
+    username: shipwise
+    password: shipwise
+  flyway:
+    locations: classpath:db/migration
 
 server:
   port: 8081
+
+dummyjson:
+  base-url: https://dummyjson.com
