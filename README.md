@@ -3,13 +3,13 @@
 Distributed order fulfillment system. Customers browse a product catalog, place orders, and the
 backend validates stock and confirms orders transactionally.
 
-![status](https://img.shields.io/badge/phase-1%20(monolith)-green)
+![status](https://img.shields.io/badge/phase-2%20(microservices)-green)
 
 ## Stack
 
 | Layer     | Technology                                  |
 |-----------|---------------------------------------------|
-| Backend   | Java 25, Spring Boot 4, Maven               |
+| Backend   | Java 25, Spring Boot 4, Spring Cloud Gateway, Maven |
 | Data      | PostgreSQL 17 (Docker), JDBI 3, Flyway      |
 | API Docs  | springdoc-openapi (Swagger UI)              |
 | Frontend  | React + TypeScript + Vite                   |
@@ -17,39 +17,47 @@ backend validates stock and confirms orders transactionally.
 ## Quickstart
 
 ```bash
-# 1. start postgres in docker (port 5433)
-./scripts/start-postgres.sh
-
-# 2. run the backend (migrates schema and seeds catalog on first start)
-cd backend && mvn spring-boot:run
-
-# 3. run the frontend
-cd frontend && npm install && npm run dev
+# start everything: postgres + all 8 services (ports 8080,8081,8082,8083,8084,8085,8086,9000)
+./scripts/dev.sh
 ```
 
+The welcome page is http://localhost:5173 (storefront) and each service exposes Swagger at
+`/swagger-ui.html` on its port. Everything routes through the gateway on http://localhost:9000.
+
 - Storefront: http://localhost:5173
-- Swagger UI: http://localhost:8080/swagger-ui.html
+- Gateway:   http://localhost:9000
+- Swagger:   http://localhost:9000/products-service/swagger-ui.html (or per-service port)
 
-The first backend start pulls ~120 products with images from dummyjson.com and stores them in
-Postgres. Subsequent starts skip seeding when the catalog is already populated.
+Phase 2 reference (ports, saga, verification scripts): [docs/phase-02.md](docs/phase-02.md).
 
-## API overview
+## Testing the phase-2 guarantees
 
-| Method | Path                    | Description                    |
-|--------|-------------------------|--------------------------------|
-| GET    | /api/products           | paginated catalog, `?name=` search |
-| GET    | /api/products/{id}      | product detail                 |
-| GET    | /api/categories         | category list                  |
-| POST   | /api/orders             | checkout (creates customer if new) |
-| GET    | /api/orders/{id}        | order detail with items        |
-| GET    | /api/orders?customerId= | order history                  |
-| POST   | /api/orders/{id}/cancel | cancel a pending order (restores stock) |
-| POST   | /api/customers          | create customer                |
+```bash
+./scripts/happy-path.sh     # register -> catalog -> order -> cross-service state check
+./scripts/last-unit-test.sh # 50 parallel checkouts of 1 item -> exactly 1 CONFIRMED
+./scripts/kill-test.sh      # shipping down mid-saga -> order compensated (refund + restock)
+```
+
+## API overview (gateway, port 9000)
+
+| Method | Path                    | Service   | Description                    |
+|--------|-------------------------|-----------|--------------------------------|
+| GET    | /api/products           | product   | paginated catalog              |
+| GET    | /api/products/{id}      | product   | product detail                 |
+| GET    | /api/categories         | product   | category list                  |
+| POST   | /api/users              | auth      | register account               |
+| GET    | /api/inventory/{id}     | inventory | current quantity               |
+| POST   | /api/orders             | order     | checkout (runs the saga)       |
+| GET    | /api/orders/{id}        | order     | order detail with items        |
+| POST   | /api/payments           | payment   | charge (mock, ~20% failure)    |
+| POST   | /api/shipments          | shipping  | plan a shipment                |
+| POST   | /api/notifications      | notification | send (mock, 202 accepted)    |
 
 ## Roadmap
 
 - [x] Phase 1 — monolith MVP (catalog, orders, storefront)
-- [ ] Phase 2 — microservices split
+- [x] Phase 2 — microservices split (gateway + saga with compensation)
+- [ ] Phase 2.5 — JWT auth
 - [ ] Phase 3 — Temporal saga orchestration
 - [ ] Phase 4 — RabbitMQ event-driven notifications
 - [ ] Phase 5 — Prometheus + Grafana + continuous profiling
