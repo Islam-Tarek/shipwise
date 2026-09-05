@@ -13,3 +13,6 @@ server:
 
 dummyjson:
   base-url: https://dummyjson.com
+
+services:
+  product: http://localhost:8081

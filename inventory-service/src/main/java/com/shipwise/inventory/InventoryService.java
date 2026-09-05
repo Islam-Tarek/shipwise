@@ -13,9 +13,11 @@ public class InventoryService {
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
     private final Jdbi jdbi;
+    private final StockSyncService stockSync;
 
-    InventoryService(Jdbi jdbi) {
+    InventoryService(Jdbi jdbi, StockSyncService stockSync) {
         this.jdbi = jdbi;
+        this.stockSync = stockSync;
     }
 
     public Stock get(long productId) {
@@ -30,6 +32,7 @@ public class InventoryService {
             throw new BusinessException("quantity cannot be negative");
         }
         jdbi.useExtension(StockDao.class, dao -> dao.upsert(productId, quantity));
+        stockSync.push(productId, quantity);
     }
 
     public void reserve(long productId, int quantity) {
@@ -42,6 +45,7 @@ public class InventoryService {
         }
         log.info("reserved {} units of product {} (one reservation wins under contention)",
                 quantity, productId);
+        stockSync.push(productId, get(productId).quantity());
     }
 
     public void restock(long productId, int quantity) {
@@ -49,5 +53,6 @@ public class InventoryService {
             throw new BusinessException("restock quantity must be positive");
         }
         jdbi.useExtension(StockDao.class, dao -> dao.restock(productId, quantity));
+        stockSync.push(productId, get(productId).quantity());
     }
 }

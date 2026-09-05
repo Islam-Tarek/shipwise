@@ -17,6 +17,9 @@ public interface StockDao {
             """)
     List<Stock> findAvailable(@Bind("qty") int qty, @Bind("limit") int limit);
 
+    @SqlQuery("SELECT * FROM stock ORDER BY product_id")
+    List<Stock> findAll();
+
     @SqlUpdate("""
             INSERT INTO stock (product_id, quantity)
             VALUES (:productId, :quantity)

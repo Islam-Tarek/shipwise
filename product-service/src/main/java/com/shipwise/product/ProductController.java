@@ -34,4 +34,9 @@ public class ProductController {
     void syncStock(@PathVariable long id, @RequestParam int quantity) {
         productService.syncStock(id, quantity);
     }
+
+    @PutMapping("/by-external/{externalId}/stock")
+    void syncStockByExternalId(@PathVariable String externalId, @RequestParam int quantity) {
+        productService.syncStockByExternalId(externalId, quantity);
+    }
 }
