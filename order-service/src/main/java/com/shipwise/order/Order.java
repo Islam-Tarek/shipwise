@@ -6,6 +6,7 @@ import java.util.List;
 
 public record Order(
         Long id,
+        Long userId,
         String customerName,
         String customerEmail,
         String status,

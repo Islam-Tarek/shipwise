@@ -35,12 +35,12 @@ public class OrderService {
     }
 
     @Transactional
-    public Order placeOrder(CreateOrderRequest request) {
+    public Order placeOrder(long userId, CreateOrderRequest request) {
         List<Reservation> reserved = new ArrayList<>();
         Long paymentId = null;
 
         long orderId = jdbi.withExtension(OrderDao.class, dao ->
-                dao.create(request.customerName().trim(), request.customerEmail().trim().toLowerCase()));
+                dao.create(userId, request.customerName().trim(), request.customerEmail().trim().toLowerCase()));
 
         jdbi.useExtension(OrderItemDao.class, dao -> {
             for (CreateOrderRequest.ItemLine item : request.items()) {
@@ -136,11 +136,19 @@ public class OrderService {
     }
 
     public Order getOrder(long id) {
-        return jdbi.withExtension(OrderDao.class, dao -> {
-            OrderRow row = dao.findById(id)
-                    .orElseThrow(() -> new NotFoundException("order %d not found".formatted(id)));
-            List<OrderItem> items = jdbi.withExtension(OrderItemDao.class, itemDao -> itemDao.findByOrderId(id));
-            return row.toOrder(items);
-        });
+        OrderRow row = jdbi.withExtension(OrderDao.class, dao ->
+                dao.findById(id)
+                        .orElseThrow(() -> new NotFoundException("order %d not found".formatted(id))));
+        return toOrder(row);
+    }
+
+    public List<Order> listOrdersForUser(long userId) {
+        List<OrderRow> rows = jdbi.withExtension(OrderDao.class, dao -> dao.findByUserId(userId));
+        return rows.stream().map(this::toOrder).toList();
+    }
+
+    private Order toOrder(OrderRow row) {
+        List<OrderItem> items = jdbi.withExtension(OrderItemDao.class, itemDao -> itemDao.findByOrderId(row.id()));
+        return row.toOrder(items);
     }
 }
