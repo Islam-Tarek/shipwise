@@ -37,3 +37,9 @@ spring:
 
 server:
   port: 9000
+
+shipwise:
+  jwt:
+    secret: shipwise-jwt-secret-must-be-at-least-32-characters-long
+  auth:
+    whitelist: /api/users/**,/api/products/**,/api/categories/**,/api/inventory/**

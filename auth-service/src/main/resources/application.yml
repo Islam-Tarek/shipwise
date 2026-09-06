@@ -10,3 +10,8 @@ spring:
 
 server:
   port: 8086
+
+shipwise:
+  jwt:
+    secret: shipwise-jwt-secret-must-be-at-least-32-characters-long
+    expiration: 86400000

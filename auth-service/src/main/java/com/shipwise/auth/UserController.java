@@ -20,8 +20,13 @@ public class UserController {
     }
 
     @PostMapping
-    UserAccount register(@Valid @RequestBody RegisterRequest request) {
+    AuthResponse register(@Valid @RequestBody RegisterRequest request) {
         return authService.register(request);
+    }
+
+    @PostMapping("/login")
+    AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 
     @GetMapping("/{id}")

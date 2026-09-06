@@ -30,10 +30,34 @@ export interface OrderItemView {
 
 export interface Order {
   id: number
-  customerId: number
+  userId: number | null
   customerName: string
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED'
   totalAmount: number
   items: OrderItemView[]
   createdAt: string
+}
+
+export interface User {
+  id: number
+  name: string
+  email: string
+  address: string | null
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
+export interface RegisterRequest {
+  name: string
+  email: string
+  password: string
+  address?: string
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
 }
