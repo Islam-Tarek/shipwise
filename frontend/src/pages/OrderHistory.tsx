@@ -1,35 +1,21 @@
-import { useState } from 'react'
-import { fetchCustomerOrders } from '../api/client'
+import { useEffect, useState } from 'react'
+import { fetchUserOrders } from '../api/client'
 import type { Order } from '../api/types'
 
 export default function OrderHistory() {
-  const [customerId, setCustomerId] = useState('')
   const [orders, setOrders] = useState<Order[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function load(e: React.FormEvent) {
-    e.preventDefault()
+  useEffect(() => {
     setError(null)
-    try {
-      setOrders(await fetchCustomerOrders(Number(customerId)))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'failed to load orders')
-    }
-  }
+    fetchUserOrders()
+      .then(setOrders)
+      .catch(err => setError(err instanceof Error ? err.message : 'failed to load orders'))
+  }, [])
 
   return (
     <div>
       <h2>order history</h2>
-      <form onSubmit={load} className="toolbar">
-        <input
-          placeholder="your customer id"
-          type="number"
-          value={customerId}
-          onChange={e => setCustomerId(e.target.value)}
-          required
-        />
-        <button>load</button>
-      </form>
 
       {error && <p className="error">{error}</p>}
       {orders?.length === 0 && <p className="muted">no orders yet</p>}
@@ -41,7 +27,7 @@ export default function OrderHistory() {
           <ul className="summary">
             {o.items.map(i => (
               <li key={i.productId}>
-                {i.quantity} x {i.productName}
+                {i.quantity} x {i.productName} — ${(i.unitPrice * i.quantity).toFixed(2)}
               </li>
             ))}
           </ul>

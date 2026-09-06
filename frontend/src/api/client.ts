@@ -1,12 +1,30 @@
-import type { Category, Order, Page, Product } from './types'
+import type {
+  AuthResponse,
+  Category,
+  LoginRequest,
+  Order,
+  Page,
+  Product,
+  RegisterRequest,
+} from './types'
 
-const BASE_URL = 'http://localhost:8080/api'
+const BASE_URL = 'http://localhost:9000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('shipwise_token')
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
     ...init,
   })
+  if (res.status === 401) {
+    localStorage.removeItem('shipwise_token')
+    localStorage.removeItem('shipwise_user')
+    window.dispatchEvent(new Event('shipwise:unauthorized'))
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.detail ?? `request failed with status ${res.status}`)
@@ -24,15 +42,33 @@ export function fetchCategories() {
   return request<Category[]>('/categories')
 }
 
+export interface CheckoutItem {
+  productId: number
+  quantity: number
+  productName: string
+  unitPrice: number
+  imageUrl?: string
+}
+
 export interface CheckoutPayload {
-  customer: { name: string; email: string; address?: string }
-  items: { productId: number; quantity: number }[]
+  customerName: string
+  customerEmail: string
+  address?: string
+  items: CheckoutItem[]
 }
 
 export function checkout(payload: CheckoutPayload) {
   return request<Order>('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export function fetchCustomerOrders(customerId: number) {
-  return request<Order[]>(`/orders?customerId=${customerId}`)
+export function register(payload: RegisterRequest) {
+  return request<AuthResponse>('/users', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function login(payload: LoginRequest) {
+  return request<AuthResponse>('/users/login', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function fetchUserOrders() {
+  return request<Order[]>('/orders')
 }
