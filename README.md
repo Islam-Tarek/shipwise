@@ -58,9 +58,11 @@ Phase 2 reference (ports, saga, verification scripts): [docs/phase-02.md](docs/p
 - [x] Phase 1 — monolith MVP (catalog, orders, storefront)
 - [x] Phase 2 — microservices split (gateway + saga with compensation)
 - [ ] Phase 2.5 — JWT auth
-- [ ] Phase 3 — Temporal saga orchestration
-- [ ] Phase 4 — RabbitMQ event-driven notifications
-- [ ] Phase 5 — Prometheus + Grafana + continuous profiling
-- [ ] Phase 6 — Elasticsearch search and centralized logs
-- [ ] Phase 7 — Docker Compose packaging
-- [ ] Phase 8 — k3s deployment
+- [ ] Phase 3 — Temporal saga orchestration (durable, retriable saga)
+- [ ] Phase 4 — RabbitMQ event-driven notifications (real SMTP delivery)
+- [ ] Phase 5 — Operability: Prometheus + Grafana + Loki centralized logs
+- [ ] Phase 6 — Docker Compose packaging (8 services + postgres + Temporal +
+        RabbitMQ + metrics stack)
+- [ ] Phase 7 — k3s deployment
+- [ ] Phase 8 — Elasticsearch storefront search
+- [ ] Phase 9 — Continuous profiling (async-profiler/JFR)

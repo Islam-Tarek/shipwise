@@ -76,5 +76,11 @@ deterministically the shipping outage.
 
 ## Moving on
 - Phase 2.5: minimal JWT auth on order creation.
-- Phase 3: Temporal saga (durable, timeouts, retries) replacing hand-rolled compensation.
-- Phases 4–8 unchanged per README roadmap.
+- Phase 3: Temporal saga (durable, timeouts, retries) replacing hand-rolled compensation —
+  same `reserve -> charge -> ship -> refund -> restock` shape already verified here.
+- Phase 4: RabbitMQ event-driven notifications with real SMTP delivery.
+- Phase 5: Operability — Prometheus + Grafana dashboards + Loki centralized logs (profiling deferred).
+- Phase 6: Docker Compose packaging (8 services + postgres + Temporal + RabbitMQ + metrics stack).
+- Phase 7: k3s deployment.
+- Phase 8: Elasticsearch storefront search.
+- Phase 9: Continuous profiling (async-profiler/JFR).
