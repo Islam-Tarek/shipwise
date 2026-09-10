@@ -19,13 +19,14 @@ for module in "${MODULES[@]}"; do
     setsid nohup mvn -q -pl "$module" spring-boot:run > "/tmp/opencode/$module.log" 2>&1 < /dev/null &
     echo $! > "/tmp/opencode/$module.pid"
   )
+  PIDS+=("$(cat "/tmp/opencode/$module.pid")")
 done
 
 echo "waiting for services"
 for port in 8081 8086 8082 8083 8084 8080 8085 9000; do
-  for i in $(seq 1 90); do
-    code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port/api/notifications" -X POST -H "Content-Type: application/json" -d '{"recipient":"x@x.io","message":"warm","channel":"email"}' 2>/dev/null || true)
-    [ "$code" = "202" ] && echo "  port $port up" && break
+  for i in $(seq 1 60); do
+    code=$(curl -s -o /dev/null -m 2 -w "%{http_code}" "http://localhost:$port/" 2>/dev/null || true)
+    [ "$code" != "000" ] && echo "  port $port up" && break
     sleep 2
   done
 done
