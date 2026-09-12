@@ -37,6 +37,7 @@
         <spring-cloud.version>2025.1.3</spring-cloud.version>
         <spring-security.version>7.1.1</spring-security.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <temporal.version>1.37.0</temporal.version>
     </properties>
 
     <dependencyManagement>

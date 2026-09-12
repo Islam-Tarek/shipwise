@@ -3,7 +3,7 @@
 Distributed order fulfillment system. Customers browse a product catalog, place orders, and the
 backend validates stock and confirms orders transactionally.
 
-![status](https://img.shields.io/badge/phase-2%20(microservices)-green)
+![status](https://img.shields.io/badge/phase-3%20(temporal%20saga)-green)
 
 ## Stack
 
@@ -11,32 +11,44 @@ backend validates stock and confirms orders transactionally.
 |-----------|---------------------------------------------|
 | Backend   | Java 25, Spring Boot 4, Spring Cloud Gateway, Maven |
 | Data      | PostgreSQL 17 (Docker), JDBI 3, Flyway      |
+| Orchestration | Temporal (durable saga), io.temporal:1.37.0 |
 | API Docs  | springdoc-openapi (Swagger UI)              |
 | Frontend  | React + TypeScript + Vite                   |
 
 ## Quickstart
 
 ```bash
-# start everything: postgres + all 8 services (ports 8080,8081,8082,8083,8084,8085,8086,9000)
+# 1. infra: postgres + temporal dev server (durable SQLite history)
+./scripts/start-postgres.sh
+./scripts/start-temporal.sh     # gRPC :7233, Web UI http://localhost:8233
+
+# 2. all 8 services (ports 8080,8081,8082,8083,8084,8085,8086,9000)
 ./scripts/dev.sh
 ```
 
 The welcome page is http://localhost:5173 (storefront) and each service exposes Swagger at
 `/swagger-ui.html` on its port. Everything routes through the gateway on http://localhost:9000.
+Temporal's workflow history is visible at http://localhost:8233.
 
 - Storefront: http://localhost:5173
 - Gateway:   http://localhost:9000
 - Swagger:   http://localhost:9000/products-service/swagger-ui.html (or per-service port)
+- Temporal:  http://localhost:8233 (workflow/activity history, retries, compensations)
 
-Phase 2 reference (ports, saga, verification scripts): [docs/phase-02.md](docs/phase-02.md).
+Phase 2 reference (ports, original saga, verification scripts): [docs/phase-02.md](docs/phase-02.md).
+The order checkout saga (reserve -> charge -> ship, with compensation) now runs as a durable
+Temporal workflow `OrderSagaWorkflow` on task queue `ORDER_SAGA` inside order-service.
 
-## Testing the phase-2 guarantees
+## Testing the phase-3 guarantees
 
 ```bash
 ./scripts/happy-path.sh     # register -> catalog -> order -> cross-service state check
 ./scripts/last-unit-test.sh # 50 parallel checkouts of 1 item -> exactly 1 CONFIRMED
 ./scripts/kill-test.sh      # shipping down mid-saga -> order compensated (refund + restock)
 ```
+
+All three run unchanged against the Temporal-orchestrated checkout: Temporal retries or
+fails nontransient steps, then the saga compensates (restock + refund) and marks the order FAILED.
 
 ## API overview (gateway, port 9000)
 
@@ -57,8 +69,8 @@ Phase 2 reference (ports, saga, verification scripts): [docs/phase-02.md](docs/p
 
 - [x] Phase 1 — monolith MVP (catalog, orders, storefront)
 - [x] Phase 2 — microservices split (gateway + saga with compensation)
-- [ ] Phase 2.5 — JWT auth
-- [ ] Phase 3 — Temporal saga orchestration (durable, retriable saga)
+- [x] Phase 2.5 — JWT auth
+- [x] Phase 3 — Temporal saga orchestration (durable, retriable saga)
 - [ ] Phase 4 — RabbitMQ event-driven notifications (real SMTP delivery)
 - [ ] Phase 5 — Operability: Prometheus + Grafana + Loki centralized logs
 - [ ] Phase 6 — Docker Compose packaging (8 services + postgres + Temporal +
