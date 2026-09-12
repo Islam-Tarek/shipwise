@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchUserOrders } from '../api/client'
+import { orderTotal } from '../api/types'
 import type { Order } from '../api/types'
 
 export default function OrderHistory() {
@@ -32,7 +33,7 @@ export default function OrderHistory() {
             ))}
           </ul>
           <p>
-            <strong>${o.totalAmount.toFixed(2)}</strong>
+            <strong>${orderTotal(o).toFixed(2)}</strong>
           </p>
         </div>
       ))}

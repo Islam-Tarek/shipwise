@@ -38,6 +38,13 @@ export interface Order {
   createdAt: string
 }
 
+export function orderTotal(order: Pick<Order, 'items' | 'totalAmount'>): number {
+  if (typeof order.totalAmount === 'number' && Number.isFinite(order.totalAmount)) {
+    return order.totalAmount
+  }
+  return order.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
+}
+
 export interface User {
   id: number
   name: string
