@@ -11,13 +11,9 @@ public record Order(
         String customerEmail,
         String status,
         String failureReason,
+        BigDecimal totalAmount,
         Instant createdAt,
         Instant updatedAt,
         List<OrderItem> items
 ) {
-    public BigDecimal total() {
-        return items.stream()
-                .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
 }
