@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 GW=http://localhost:9000
 PID=1
 
-STOP() { for p in "$@"; do ss -tlnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | xargs -r kill; done; sleep 2; }
+STOP() { for p in "$@"; do ss -tlnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | xargs -r kill; done; for p in "$@"; do while ss -tln 2>/dev/null | grep -q ":$p "; do sleep 1; done; done; }
 WAIT_UP() { until [ "$(curl -s -o /dev/null -w '%{http_code}' "$2" 2>/dev/null)" != "000" ]; do sleep 2; done; }
 
 echo "== baseline inventory stock =="
@@ -27,8 +27,14 @@ WAIT_UP 8083 http://localhost:8083/api/payments/99999999
 echo "== killing shipping-service (8084) mid-saga =="
 STOP 8084
 
+echo "== register account for auth token =="
+TOKEN=$(curl -s -X POST "$GW/api/users" -H "Content-Type: application/json" \
+  -d '{"name":"Kill Test","email":"killtest'$RANDOM'@example.com","password":"secret123"}' \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+echo "  token acquired (${TOKEN:0:8}...)"
+
 echo "== placing order while shipping is down =="
-ORDER=$(curl -s -m 30 -X POST "$GW/api/orders" -H "Content-Type: application/json" -d "{
+ORDER=$(curl -s -m 30 -X POST "$GW/api/orders" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{
   \"customerName\":\"Kill Test\",\"customerEmail\":\"kill$RANDOM@example.com\",\"address\":\"x\",
   \"items\":[{\"productId\":$PID,\"quantity\":2,\"productName\":\"kill test\",\"unitPrice\":29.99}]}")
 OID=$(echo "$ORDER" | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])")
