@@ -3,6 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 MODULES=(
   "product-service:8081"
   "auth-service:8086"

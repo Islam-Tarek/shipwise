@@ -42,7 +42,7 @@ public class OrderSagaWorkflowImpl implements OrderSagaWorkflow {
             saga.addCompensation(activities::refundPayment, payment.paymentId());
 
             activities.createShipment(orderId, customerAddress);
-            activities.setOrderStatus(orderId, "CONFIRMED", null);
+            activities.confirmOrder(orderId);
             return new OrderOutcome(orderId, "CONFIRMED", payment.paymentId());
         } catch (Exception e) {
             activities.setOrderStatus(orderId, "FAILED", FAILED_REASON);
