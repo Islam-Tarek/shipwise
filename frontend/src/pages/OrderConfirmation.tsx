@@ -1,5 +1,6 @@
 import { useLocation, useParams } from 'react-router-dom'
 import type { Order } from '../api/types'
+import { orderTotal } from '../api/types'
 import { useEffect, useState } from 'react'
 
 export default function OrderConfirmation() {
@@ -29,7 +30,7 @@ export default function OrderConfirmation() {
         ))}
       </ul>
       <p>
-        <strong>total: ${order.totalAmount.toFixed(2)}</strong>
+        <strong>total: ${orderTotal(order).toFixed(2)}</strong>
       </p>
     </div>
   )

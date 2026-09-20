@@ -6,17 +6,14 @@ import java.util.List;
 
 public record Order(
         Long id,
+        Long userId,
         String customerName,
         String customerEmail,
         String status,
         String failureReason,
+        BigDecimal totalAmount,
         Instant createdAt,
         Instant updatedAt,
         List<OrderItem> items
 ) {
-    public BigDecimal total() {
-        return items.stream()
-                .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
 }

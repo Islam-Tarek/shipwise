@@ -6,6 +6,7 @@ import javax.sql.DataSource;
 
 import com.shipwise.order.OrderItem;
 import com.shipwise.order.OrderRow;
+import com.shipwise.order.outbox.OrderOutbox;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.mapper.reflect.CaseInsensitiveColumnNameMatcher;
 import org.jdbi.v3.core.mapper.reflect.ConstructorMapper;
@@ -29,6 +30,7 @@ public class JdbiConfig {
         ));
         jdbi.registerRowMapper(ConstructorMapper.factory(OrderRow.class));
         jdbi.registerRowMapper(ConstructorMapper.factory(OrderItem.class));
+        jdbi.registerRowMapper(ConstructorMapper.factory(OrderOutbox.class));
         return jdbi;
     }
 }
