@@ -7,6 +7,14 @@ spring:
     password: shipwise
   flyway:
     locations: classpath:db/migration
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: shipwise
+    password: shipwise
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    connection-timeout: 3000ms
 
 server:
   port: 8080

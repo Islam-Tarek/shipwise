@@ -28,4 +28,7 @@ public interface OrderSagaActivities {
 
     @ActivityMethod
     void setOrderStatus(long orderId, String status, String failureReason);
+
+    @ActivityMethod
+    void confirmOrder(long orderId);
 }

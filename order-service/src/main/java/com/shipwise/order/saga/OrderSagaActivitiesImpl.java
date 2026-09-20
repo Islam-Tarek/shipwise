@@ -1,7 +1,12 @@
 package com.shipwise.order.saga;
 
+import com.shipwise.common.event.OrderConfirmedEvent;
+import com.shipwise.common.event.OrderConfirmedItem;
 import com.shipwise.order.OrderDao;
+import com.shipwise.order.OrderItem;
 import com.shipwise.order.OrderItemDao;
+import com.shipwise.order.OrderRow;
+import com.shipwise.order.outbox.OrderOutboxDao;
 import io.temporal.failure.ApplicationFailure;
 import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
@@ -10,6 +15,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -21,15 +27,18 @@ public class OrderSagaActivitiesImpl implements OrderSagaActivities {
     private static final Logger log = LoggerFactory.getLogger(OrderSagaActivitiesImpl.class);
 
     private final Jdbi jdbi;
+    private final ObjectMapper objectMapper;
     private final RestClient inventoryClient;
     private final RestClient paymentClient;
     private final RestClient shippingClient;
 
     OrderSagaActivitiesImpl(Jdbi jdbi,
+                            ObjectMapper objectMapper,
                             @Qualifier("inventoryClient") RestClient inventoryClient,
                             @Qualifier("paymentClient") RestClient paymentClient,
                             @Qualifier("shippingClient") RestClient shippingClient) {
         this.jdbi = jdbi;
+        this.objectMapper = objectMapper;
         this.inventoryClient = inventoryClient;
         this.paymentClient = paymentClient;
         this.shippingClient = shippingClient;
@@ -109,6 +118,39 @@ public class OrderSagaActivitiesImpl implements OrderSagaActivities {
     public void setOrderStatus(long orderId, String status, String failureReason) {
         jdbi.useExtension(OrderDao.class, dao -> dao.setStatus(orderId, status, failureReason));
         log.info("temporal saga: order {} status -> {}", orderId, status);
+    }
+
+    @Override
+    public void confirmOrder(long orderId) {
+        jdbi.useTransaction(handle -> {
+            OrderDao orderDao = handle.attach(OrderDao.class);
+            OrderItemDao itemDao = handle.attach(OrderItemDao.class);
+            OrderOutboxDao outboxDao = handle.attach(OrderOutboxDao.class);
+
+            OrderRow row = orderDao.findById(orderId)
+                    .orElseThrow(() -> new IllegalStateException("order " + orderId + " not found during confirm"));
+
+            List<OrderItem> items = itemDao.findByOrderId(orderId);
+            BigDecimal total = items.stream()
+                    .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            orderDao.setStatus(orderId, "CONFIRMED", null);
+
+            OrderConfirmedEvent event = new OrderConfirmedEvent(
+                    orderId,
+                    row.customerName(),
+                    row.customerEmail(),
+                    total,
+                    row.createdAt(),
+                    items.stream()
+                            .map(item -> new OrderConfirmedItem(
+                                    item.productId(), item.productName(), item.unitPrice(), item.quantity()))
+                            .toList());
+
+            outboxDao.append(orderId, "ORDER_CONFIRMED", objectMapper.writeValueAsString(event));
+        });
+        log.info("temporal saga: order {} confirmed and outbox event queued", orderId);
     }
 
     private BigDecimal orderTotal(long orderId) {
