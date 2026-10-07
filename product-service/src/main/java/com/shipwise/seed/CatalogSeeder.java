@@ -20,8 +20,8 @@ public class CatalogSeeder implements ApplicationRunner {
     private final RestClient restClient;
     private final Jdbi jdbi;
 
-    CatalogSeeder(@Value("${dummyjson.base-url}") String baseUrl, Jdbi jdbi) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+    CatalogSeeder(RestClient.Builder builder, @Value("${dummyjson.base-url}") String baseUrl, Jdbi jdbi) {
+        this.restClient = builder.baseUrl(baseUrl).build();
         this.jdbi = jdbi;
     }
 
