@@ -20,6 +20,8 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 
 @Component
 public class OrderSagaActivitiesImpl implements OrderSagaActivities {
@@ -32,16 +34,20 @@ public class OrderSagaActivitiesImpl implements OrderSagaActivities {
     private final RestClient paymentClient;
     private final RestClient shippingClient;
 
+    private final ObservationRegistry observationRegistry;
+
     OrderSagaActivitiesImpl(Jdbi jdbi,
                             ObjectMapper objectMapper,
                             @Qualifier("inventoryClient") RestClient inventoryClient,
                             @Qualifier("paymentClient") RestClient paymentClient,
-                            @Qualifier("shippingClient") RestClient shippingClient) {
+                            @Qualifier("shippingClient") RestClient shippingClient,
+                            ObservationRegistry observationRegistry) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
         this.inventoryClient = inventoryClient;
         this.paymentClient = paymentClient;
         this.shippingClient = shippingClient;
+        this.observationRegistry = observationRegistry;
     }
 
     @Override
@@ -122,35 +128,47 @@ public class OrderSagaActivitiesImpl implements OrderSagaActivities {
 
     @Override
     public void confirmOrder(long orderId) {
-        jdbi.useTransaction(handle -> {
-            OrderDao orderDao = handle.attach(OrderDao.class);
-            OrderItemDao itemDao = handle.attach(OrderItemDao.class);
-            OrderOutboxDao outboxDao = handle.attach(OrderOutboxDao.class);
+        Observation observation = Observation.createNotStarted("saga.activity.confirm_order", observationRegistry)
+                .contextualName("saga.activity.confirm_order")
+                .lowCardinalityKeyValue("saga.order_id", String.valueOf(orderId))
+                .lowCardinalityKeyValue("saga.activity", "confirm_order");
+        observation.start();
+        try {
+            jdbi.useTransaction(handle -> {
+                OrderDao orderDao = handle.attach(OrderDao.class);
+                OrderItemDao itemDao = handle.attach(OrderItemDao.class);
+                OrderOutboxDao outboxDao = handle.attach(OrderOutboxDao.class);
 
-            OrderRow row = orderDao.findById(orderId)
-                    .orElseThrow(() -> new IllegalStateException("order " + orderId + " not found during confirm"));
+                OrderRow row = orderDao.findById(orderId)
+                        .orElseThrow(() -> new IllegalStateException("order " + orderId + " not found during confirm"));
 
-            List<OrderItem> items = itemDao.findByOrderId(orderId);
-            BigDecimal total = items.stream()
-                    .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                List<OrderItem> items = itemDao.findByOrderId(orderId);
+                BigDecimal total = items.stream()
+                        .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            orderDao.setStatus(orderId, "CONFIRMED", null);
+                orderDao.setStatus(orderId, "CONFIRMED", null);
 
-            OrderConfirmedEvent event = new OrderConfirmedEvent(
-                    orderId,
-                    row.customerName(),
-                    row.customerEmail(),
-                    total,
-                    row.createdAt(),
-                    items.stream()
-                            .map(item -> new OrderConfirmedItem(
-                                    item.productId(), item.productName(), item.unitPrice(), item.quantity()))
-                            .toList());
+                OrderConfirmedEvent event = new OrderConfirmedEvent(
+                        orderId,
+                        row.customerName(),
+                        row.customerEmail(),
+                        total,
+                        row.createdAt(),
+                        items.stream()
+                                .map(item -> new OrderConfirmedItem(
+                                        item.productId(), item.productName(), item.unitPrice(), item.quantity()))
+                                .toList());
 
-            outboxDao.append(orderId, "ORDER_CONFIRMED", objectMapper.writeValueAsString(event));
-        });
-        log.info("temporal saga: order {} confirmed and outbox event queued", orderId);
+                outboxDao.append(orderId, "ORDER_CONFIRMED", objectMapper.writeValueAsString(event));
+            });
+            observation.stop();
+            log.info("temporal saga: order {} confirmed and outbox event queued", orderId);
+        } catch (Exception e) {
+            observation.error(e);
+            observation.stop();
+            throw e;
+        }
     }
 
     private BigDecimal orderTotal(long orderId) {

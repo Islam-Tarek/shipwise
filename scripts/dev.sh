@@ -68,3 +68,10 @@ else
   echo "check /tmp/opencode/*.log for the failing services"
 fi
 echo "stop with: ./scripts/stop.sh"
+if command -v docker >/dev/null 2>&1 && ! docker ps --format '{{.Names}}' | grep -q "^shipwise-lgtm$"; then
+  if curl -s -o /dev/null -m 1 http://localhost:3000 >/dev/null 2>&1 || curl -s -o /dev/null -m 1 http://localhost:4318 >/dev/null 2>&1; then
+    :
+  else
+    ./scripts/start-lgtm.sh >/tmp/opencode/lgtm-start.log 2>&1 || true
+  fi
+fi

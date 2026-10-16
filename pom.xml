@@ -38,10 +38,16 @@
         <spring-security.version>7.1.1</spring-security.version>
         <jjwt.version>0.12.6</jjwt.version>
         <temporal.version>1.37.0</temporal.version>
+        <otel.logback.appender.version>2.21.0-alpha</otel.logback.appender.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-api-incubator</artifactId>
+                <version>1.62.0-alpha</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>

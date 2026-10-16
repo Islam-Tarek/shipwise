@@ -3,6 +3,8 @@ package com.shipwise.order.outbox;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +24,12 @@ public class OrderOutboxDispatcher {
 
     private final Jdbi jdbi;
     private final RabbitTemplate rabbitTemplate;
+    private final ObservationRegistry observationRegistry;
 
-    OrderOutboxDispatcher(Jdbi jdbi, RabbitTemplate rabbitTemplate) {
+    OrderOutboxDispatcher(Jdbi jdbi, RabbitTemplate rabbitTemplate, ObservationRegistry observationRegistry) {
         this.jdbi = jdbi;
         this.rabbitTemplate = rabbitTemplate;
+        this.observationRegistry = observationRegistry;
     }
 
     @Scheduled(fixedDelay = 1000)
@@ -34,18 +38,36 @@ public class OrderOutboxDispatcher {
         if (rows.isEmpty()) {
             return;
         }
-        for (OrderOutbox row : rows) {
-            try {
-                publish(row);
-                jdbi.useExtension(OrderOutboxDao.class, dao -> dao.markSent(row.id()));
-                log.info("outbox: published {} for order {} -> {}", row.eventType(), row.orderId(),
-                        OrderEventsConfig.ROUTING_KEY);
-            } catch (Exception e) {
-                jdbi.useExtension(OrderOutboxDao.class, dao -> dao.markFailed(row.id()));
-                log.warn("outbox: publish failed for row {} (order {}, attempts now {}) - will retry next tick: {}",
-                        row.id(), row.orderId(), row.attempts() + 1, e.getMessage());
+        Observation flushObs = Observation.createNotStarted("outbox.flush", observationRegistry)
+                .contextualName("outbox.flush")
+                .lowCardinalityKeyValue("outbox.batch.size", String.valueOf(rows.size()));
+        flushObs.observe(() -> {
+            for (OrderOutbox row : rows) {
+                try {
+                    Observation publishObs = Observation.createNotStarted("outbox.publish", observationRegistry)
+                            .contextualName("outbox.publish")
+                            .lowCardinalityKeyValue("messaging.system", "rabbitmq")
+                            .lowCardinalityKeyValue("messaging.operation", "publish")
+                            .lowCardinalityKeyValue("messaging.destination.exchange", OrderEventsConfig.EXCHANGE)
+                            .lowCardinalityKeyValue("messaging.destination.name", OrderEventsConfig.QUEUE)
+                            .lowCardinalityKeyValue("messaging.rabbitmq.destination.routing_key", OrderEventsConfig.ROUTING_KEY)
+                            .lowCardinalityKeyValue("event.type", row.eventType())
+                            .lowCardinalityKeyValue("order.id", String.valueOf(row.orderId()))
+                            .lowCardinalityKeyValue("outbox.row_id", String.valueOf(row.id()));
+                    publishObs.observeChecked(() -> {
+                        publish(row);
+                        return null;
+                    });
+                    jdbi.useExtension(OrderOutboxDao.class, dao -> dao.markSent(row.id()));
+                    log.info("outbox: published {} for order {} -> {}", row.eventType(), row.orderId(),
+                            OrderEventsConfig.ROUTING_KEY);
+                } catch (Exception e) {
+                    jdbi.useExtension(OrderOutboxDao.class, dao -> dao.markFailed(row.id()));
+                    log.warn("outbox: publish failed for row {} (order {}, attempts now {}) - will retry next tick: {}",
+                            row.id(), row.orderId(), row.attempts() + 1, e.getMessage());
+                }
             }
-        }
+        });
     }
 
     private void publish(OrderOutbox row) throws Exception {

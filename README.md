@@ -105,7 +105,7 @@ exhaustion so an SMTP outage never drops the event.
 - [x] Phase 2.5 — JWT auth
 - [x] Phase 3 — Temporal saga orchestration (durable, retriable saga)
 - [x] Phase 4 — RabbitMQ event-driven notifications (outbox, real SMTP delivery)
-- [ ] Phase 5 — Operability: Prometheus + Grafana + Loki centralized logs
+- [ ] Phase 5 — Observability: OpenTelemetry (traces+metrics+logs, OTLP/HTTP) + Grafana LGTM
 - [ ] Phase 6 — Docker Compose packaging (8 services + postgres + Temporal +
         RabbitMQ + metrics stack)
 - [ ] Phase 7 — k3s deployment

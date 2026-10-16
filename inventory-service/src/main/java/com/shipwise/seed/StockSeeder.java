@@ -18,8 +18,8 @@ public class StockSeeder implements ApplicationRunner {
     private final RestClient restClient;
     private final Jdbi jdbi;
 
-    StockSeeder(@Value("${dummyjson.base-url}") String baseUrl, Jdbi jdbi) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+    StockSeeder(RestClient.Builder builder, @Value("${dummyjson.base-url}") String baseUrl, Jdbi jdbi) {
+        this.restClient = builder.baseUrl(baseUrl).build();
         this.jdbi = jdbi;
     }
 
