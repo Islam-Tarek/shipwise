@@ -13,15 +13,7 @@ echo "== setting product $PID stock to exactly 1 unit =="
 curl -s -X PUT -H "Content-Type: application/json" -d '{"quantity":1}' "$GW/api/inventory/$PID" >/dev/null
 echo "  stock now: $(curl -s "$GW/api/inventory/$PID" | python3 -c "import sys,json;print(json.load(sys.stdin)['quantity'])")"
 
-echo "== pinning payment failure-rate to 0 (deterministic race) =="
-PAYPID=$(ss -tlnp 2>/dev/null | grep ":8083 " | grep -oP 'pid=\K[0-9]+' | head -1)
-if [ -n "$PAYPID" ]; then
-  kill "$PAYPID"
-  while ss -tln 2>/dev/null | grep -q ":8083 "; do sleep 1; done
-fi
-setsid nohup mvn -q -pl payment-service spring-boot:run -Dspring-boot.run.arguments=--payment.failure-rate=0 > /tmp/opencode/payment-service.log 2>&1 < /dev/null & disown
-until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8083/api/payments/99999999 2>/dev/null)" != "000" ]; do sleep 2; done
-echo "  payment failure-rate pinned to 0"
+echo "== payment failure-rate already 0 via compose =="
 
 echo "== registering account for auth token =="
 TOKEN=$(curl -s -X POST "$GW/api/users" -H "Content-Type: application/json" \

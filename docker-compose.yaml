@@ -1,0 +1,392 @@
+services:
+  # ================================================================
+  # Infrastructure
+  # ================================================================
+  shipwise-postgres:
+    image: postgres:17
+    container_name: shipwise-postgres
+    environment:
+      POSTGRES_USER: shipwise
+      POSTGRES_PASSWORD: shipwise
+      POSTGRES_DB: shipwise
+    ports:
+      - "5433:5432"
+    volumes:
+      - shipwise-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shipwise -d shipwise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  shipwise-temporal:
+    build:
+      context: ./docker/temporal
+      dockerfile: Dockerfile
+    container_name: shipwise-temporal
+    environment:
+      DB: postgres
+      DATABASE_NAME: temporal
+      POSTGRES_USER: shipwise
+      POSTGRES_PWD: shipwise
+      POSTGRES_SEEDS: shipwise-postgres:5432
+    ports:
+      - "7233:7233"
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  shipwise-rabbitmq:
+    image: rabbitmq:4-management
+    container_name: shipwise-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: shipwise
+      RABBITMQ_DEFAULT_PASS: shipwise
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  shipwise-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: shipwise-lgtm
+    environment:
+      ENABLE_LOGS_ALL: "true"
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  shipwise-temporal-ui:
+    image: temporalio/ui:2.25.0
+    container_name: shipwise-temporal-ui
+    environment:
+      TEMPORAL_ADDRESS: shipwise-temporal:7233
+    ports:
+      - "8233:8080"
+    depends_on:
+      shipwise-temporal:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+
+  # ================================================================
+  # Java services (built from source)
+  # ================================================================
+  product-service:
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
+    container_name: product-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_products
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8081
+      DUMMYJSON_BASE_URL: https://dummyjson.com
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: auth-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_auth
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8086
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: inventory-service/Dockerfile
+    container_name: inventory-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_inventory
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8082
+      SERVICES_PRODUCT: http://product-service:8081
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: payment-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_payment
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8083
+      PAYMENT_FAILURE_RATE: 0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  shipping-service:
+    build:
+      context: .
+      dockerfile: shipping-service/Dockerfile
+    container_name: shipping-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_shipping
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8084
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: order-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_orders
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8080
+      TEMPORAL_ADDRESS: shipwise-temporal:7233
+      SPRING_RABBITMQ_HOST: shipwise-rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: shipwise
+      SPRING_RABBITMQ_PASSWORD: shipwise
+      SPRING_RABBITMQ_PUBLISHER-CONFIRM-TYPE: correlated
+      SPRING_RABBITMQ_PUBLISHER-RETURNS: "true"
+      SPRING_RABBITMQ_CONNECTION-TIMEOUT: 3000ms
+      SERVICES_INVENTORY: http://inventory-service:8082
+      SERVICES_PAYMENT: http://payment-service:8083
+      SERVICES_SHIPPING: http://shipping-service:8084
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-temporal:
+        condition: service_started
+      shipwise-rabbitmq:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: notification-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://shipwise-postgres:5432/shipwise_notification
+      SPRING_DATASOURCE_USERNAME: shipwise
+      SPRING_DATASOURCE_PASSWORD: shipwise
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SERVER_PORT: 8085
+      SPRING_RABBITMQ_HOST: shipwise-rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: shipwise
+      SPRING_RABBITMQ_PASSWORD: shipwise
+      SPRING_MAIL_HOST: ${MAIL_HOST:-localhost}
+      SPRING_MAIL_PORT: ${MAIL_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      SPRING_MAIL_FROM: ${MAIL_FROM}
+      CUSTOM_MAIL_FROM: ${MAIL_FROM}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      shipwise-postgres:
+        condition: service_healthy
+      shipwise-rabbitmq:
+        condition: service_healthy
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: gateway
+    ports:
+      - "9000:9000"
+    environment:
+      SERVER_PORT: 9000
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: product
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://product-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/products/**
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: auth
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://auth-service:8086
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/users/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: inventory
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://inventory-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/api/inventory/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: order
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://order-service:8080
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/api/orders/**
+      SPRING_CLOUD_GATEWAY_ROUTES_4_ID: payment
+      SPRING_CLOUD_GATEWAY_ROUTES_4_URI: http://payment-service:8083
+      SPRING_CLOUD_GATEWAY_ROUTES_4_PREDICATES_0: Path=/api/payments/**
+      SPRING_CLOUD_GATEWAY_ROUTES_5_ID: shipping
+      SPRING_CLOUD_GATEWAY_ROUTES_5_URI: http://shipping-service:8084
+      SPRING_CLOUD_GATEWAY_ROUTES_5_PREDICATES_0: Path=/api/shipments/**
+      SPRING_CLOUD_GATEWAY_ROUTES_6_ID: notification
+      SPRING_CLOUD_GATEWAY_ROUTES_6_URI: http://notification-service:8085
+      SPRING_CLOUD_GATEWAY_ROUTES_6_PREDICATES_0: Path=/api/notifications/**
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://shipwise-lgtm:4318
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/traces
+      MANAGEMENT_OPENTELEMETRY_METRICS_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/metrics
+      MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://shipwise-lgtm:4318/logs
+    depends_on:
+      product-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      shipping-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      shipwise-lgtm:
+        condition: service_started
+    networks:
+      - shipwise
+    restart: unless-stopped
+    # ================================================================
+    # Frontend
+    # ================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "5173:80"
+    environment:
+      VITE_API_BASE_URL: http://localhost:9000
+    depends_on:
+      - gateway
+    networks:
+      - shipwise
+    restart: unless-stopped
+
+networks:
+  shipwise:
+    driver: bridge
+
+volumes:
+  shipwise-postgres-data:
+  shipwise-temporal-data:
+  shipwise-lgtm-data:
