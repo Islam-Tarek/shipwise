@@ -9,17 +9,17 @@ import org.springframework.web.client.RestClient;
 public class ServiceClientsConfig {
 
     @Bean("inventoryClient")
-    RestClient inventoryClient(@Value("${services.inventory}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+    RestClient inventoryClient(RestClient.Builder builder, @Value("${services.inventory}") String baseUrl) {
+        return builder.baseUrl(baseUrl).build();
     }
 
     @Bean("paymentClient")
-    RestClient paymentClient(@Value("${services.payment}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+    RestClient paymentClient(RestClient.Builder builder, @Value("${services.payment}") String baseUrl) {
+        return builder.baseUrl(baseUrl).build();
     }
 
     @Bean("shippingClient")
-    RestClient shippingClient(@Value("${services.shipping}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+    RestClient shippingClient(RestClient.Builder builder, @Value("${services.shipping}") String baseUrl) {
+        return builder.baseUrl(baseUrl).build();
     }
 }
