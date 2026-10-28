@@ -27,3 +27,4 @@ data/
 
 # Env
 .env
+docker-compose.override.yaml
