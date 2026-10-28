@@ -3,7 +3,7 @@
 Distributed order fulfillment system. Customers browse a product catalog, place orders, and the
 backend validates stock and confirms orders transactionally.
 
-![status](https://img.shields.io/badge/phase-5%20(observability)-green)
+![status](https://img.shields.io/badge/phase-6%20(docker%20compose)-green)
 
 ## Stack
 
@@ -108,6 +108,71 @@ Then open **Grafana Explore** at http://localhost:3000:
 All eight services export traces, metrics and logs over OTLP/HTTP only
 (`http://localhost:4318`) to the `grafana/otel-lgtm` container.
 
+## Running with Docker Compose (Phase 6)
+
+The full stack can be started with a single command using Docker Compose:
+
+```bash
+# 1. Copy env template and fill in Gmail app password
+cp .env.example .env
+# edit .env with your Gmail credentials
+
+# 2. Build and start everything (13 containers)
+./scripts/compose-up.sh
+
+# 3. Stop when done
+./scripts/compose-down.sh
+```
+
+### What Compose provides
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| shipwise-postgres | 5433 | PostgreSQL 17 (all service databases) |
+| shipwise-temporal | 7233 | Temporal server (durable saga orchestration) |
+| shipwise-temporal-ui | 8233 | Temporal Web UI |
+| shipwise-rabbitmq | 5672 / 15672 | RabbitMQ (transactional outbox + publisher confirms) |
+| shipwise-lgtm | 3000 / 4318 | Grafana + Tempo + Loki + Mimir (OTLP) |
+| product-service | 8081 | Product catalog |
+| auth-service | 8086 | User registration / auth |
+| inventory-service | 8082 | Stock reservation |
+| payment-service | 8083 | Charge processing |
+| shipping-service | 8084 | Shipment planning |
+| order-service | 8080 | Saga orchestrated checkout |
+| notification-service | 8085 | Confirmation emails via Gmail SMTP |
+| gateway | 9000 | API gateway (all routes) |
+| frontend | 5173 | React storefront |
+
+### Access URLs
+
+- Gateway: http://localhost:9000
+- Storefront: http://localhost:5173
+- Temporal UI: http://localhost:8233
+- Grafana LGTM: http://localhost:3000 (admin/admin)
+- RabbitMQ Management: http://localhost:15672 (shipwise/shipwise)
+- OTLP endpoint: http://localhost:4318
+
+### Verification scripts (run against Compose)
+
+```bash
+./scripts/happy-path.sh     # register -> catalog -> order -> cross-service state
+./scripts/kill-test.sh      # shipping down mid-saga -> order compensated
+./scripts/last-unit-test.sh # 50 parallel checkouts -> exactly 1 CONFIRMED
+./scripts/notification-test.sh  # confirmation emails via real Gmail
+```
+
+### Notes
+
+- Postgres is mapped to host port `5433`; JDBC URLs inside Compose use container port `5432`.
+- All Java services connect via Docker DNS (`shipwise-postgres`, `shipwise-rabbitmq`, `shipwise-temporal`, `shipwise-lgtm`).
+- The `.env` file (gitignored) provides `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` for Gmail SMTP.
+- OTLP base endpoint is `http://shipwise-lgtm:4318` (the exporter auto-appends `/v1/traces|metrics|logs`).
+
+Then open **Grafana Explore** at http://localhost:3000:
+- **Tempo**: search `service.name = "order-service"` for end-to-end traces
+- **Loki**: filter `{service_name="order-service"}` for logs with `trace_id`/`span_id`
+- **Mimir**: `http_server_requests_seconds_count` per `service_name`
+
 ## API overview (gateway, port 9000)
 
 | Method | Path                    | Service   | Description                    |
@@ -131,7 +196,7 @@ All eight services export traces, metrics and logs over OTLP/HTTP only
 - [x] Phase 3 — Temporal saga orchestration (durable, retriable saga)
 - [x] Phase 4 — RabbitMQ event-driven notifications (outbox, real SMTP delivery)
 - [x] Phase 5 — Observability: OpenTelemetry (traces+metrics+logs, OTLP/HTTP) + Grafana LGTM
-- [ ] Phase 6 — Docker Compose packaging (8 services + postgres + Temporal +
+- [x] Phase 6 — Docker Compose packaging (8 services + postgres + Temporal +
         RabbitMQ + metrics stack)
 - [ ] Phase 7 — k3s deployment
 - [ ] Phase 8 — Elasticsearch storefront search
