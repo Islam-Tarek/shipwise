@@ -12,20 +12,19 @@ cd "$(dirname "$0")/.."
 GW=http://localhost:9000
 PID=1
 
-STOP() { for p in "$@"; do ss -tlnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | xargs -r kill; done; for p in "$@"; do while ss -tln 2>/dev/null | grep -q ":$p "; do sleep 1; done; done; }
-WAIT_UP() { until [ "$(curl -s -o /dev/null -w '%{http_code}' "$2" 2>/dev/null)" != "000" ]; do sleep 2; done; }
-
+STOP() { docker stop "$1" >/dev/null 2>&1; }
+WAIT_DOWN() { until ! curl -s -o /dev/null -m 2 "$1" >/dev/null 2>&1; do sleep 1; done; }
+WAIT_UP() { until curl -s -o /dev/null -m 2 "$1" >/dev/null 2>&1; do sleep 1; done; }
 echo "== baseline inventory stock =="
 BEFORE=$(curl -s "$GW/api/inventory/$PID" | python3 -c "import sys,json;print(json.load(sys.stdin)['quantity'])")
 echo "  stock before: $BEFORE"
 
-echo "== pinning payment failure-rate to 0 (deterministic refund) =="
-STOP 8083
-setsid nohup mvn -q -pl payment-service spring-boot:run -Dspring-boot.run.arguments=--payment.failure-rate=0 > /tmp/opencode/payment-service.log 2>&1 < /dev/null & disown
-WAIT_UP 8083 http://localhost:8083/api/payments/99999999
+echo "== payment failure-rate already 0 via compose =="
 
-echo "== killing shipping-service (8084) mid-saga =="
-STOP 8084
+echo "== killing shipping-service mid-saga =="
+STOP shipping-service
+WAIT_DOWN http://localhost:8084/api/shipments/99999999
+echo "  shipping-service stopped"
 
 echo "== register account for auth token =="
 TOKEN=$(curl -s -X POST "$GW/api/users" -H "Content-Type: application/json" \
@@ -50,8 +49,9 @@ AFTER=$(curl -s "$GW/api/inventory/$PID" | python3 -c "import sys,json;print(jso
 echo "  stock after:    $AFTER (expect $BEFORE)"
 
 echo "== restarting shipping-service =="
-setsid nohup mvn -q -pl shipping-service spring-boot:run > /tmp/opencode/shipping-service.log 2>&1 < /dev/null & disown
-WAIT_UP 8084 http://localhost:8084/api/shipments/99999999
+docker start shipping-service >/dev/null 2>&1
+WAIT_UP http://localhost:8084/api/shipments/99999999
+echo "  shipping-service restarted"
 
 ok=1
 [ "$STATUS" = "FAILED" ] || { echo "FAIL: order not FAILED"; ok=0; }

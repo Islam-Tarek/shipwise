@@ -32,14 +32,7 @@ except Exception as e:
     raise SystemExit(1)
 EOF
 
-echo "== 0.5 pin payment failure-rate to 0 (deterministic) =="
-PAYPID=$(ss -tlnp 2>/dev/null | grep ":8083 " | grep -oP 'pid=\K[0-9]+' | head -1)
-if [ -n "$PAYPID" ]; then
-  kill "$PAYPID"
-  while ss -tln 2>/dev/null | grep -q ":8083 "; do sleep 1; done
-fi
-setsid nohup mvn -q -pl payment-service spring-boot:run -Dspring-boot.run.arguments=--payment.failure-rate=0 > /tmp/opencode/payment-service.log 2>&1 < /dev/null & disown
-until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8083/api/payments/99999999 2>/dev/null)" != "000" ]; do sleep 2; done
+echo "== 0.5 payment failure-rate already 0 via compose (deterministic) =="
 
 echo "== 0.75 start rabbitmq if needed =="
 ./scripts/start-rabbitmq.sh

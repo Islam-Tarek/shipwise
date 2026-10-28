@@ -21,15 +21,9 @@ echo "== 3. stock before =="
 QTY_BEFORE=$(curl -s "$GW/api/inventory/$PID" | python3 -c "import sys,json;print(json.load(sys.stdin)['quantity'])")
 echo "  product $PID stock: $QTY_BEFORE"
 
-echo "== 3.5 pin payment failure-rate to 0 (deterministic happy path) =="
-PAYPID=$(ss -tlnp 2>/dev/null | grep ":8083 " | grep -oP 'pid=\K[0-9]+' | head -1)
-if [ -n "$PAYPID" ]; then
-  kill "$PAYPID"
-  while ss -tln 2>/dev/null | grep -q ":8083 "; do sleep 1; done
-fi
-setsid nohup mvn -q -pl payment-service spring-boot:run -Dspring-boot.run.arguments=--payment.failure-rate=0 > /tmp/opencode/payment-service.log 2>&1 < /dev/null & disown
+echo "== 3.5 verify payment-service is up (failure-rate=0 via compose) =="
 until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8083/api/payments/99999999 2>/dev/null)" != "000" ]; do sleep 2; done
-echo "  payment failure-rate pinned to 0"
+echo "  payment-service reachable (failure-rate=0)"
 
 echo "== 4. place order for 2 units =="
 ORDER=$(curl -s -X POST "$GW/api/orders" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{
